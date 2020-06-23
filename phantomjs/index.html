@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Critical Snake</title>
+    <style>
+        div#map {
+            position: absolute;
+            left: 0px;
+            top: 0px;
+            width: 100%;
+            height: 100%;
+        }
+
+        div#frames {
+            position: absolute;
+            left: 0px;
+            top: 0px;
+            padding: 10px;
+            z-index: 9999999999999;
+            background-color: gray;
+        }
+
+        div#epoch {
+            position: absolute;
+            left: 0px;
+            top: 30px;
+            padding: 10px;
+            z-index: 9999999999999;
+            background-color: gray;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <div id="frames">frames</div>
+    <div id="epoch">epoch</div>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
+        integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+        crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
+        integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
+        crossorigin=""></script>
+
+    <script src="https://code.jquery.com/jquery-1.10.2.min.js"></script>
+
+    <script>
+        var snakeModule = {};
+
+        $(document).ready(function () {
+            snakeModule.map = L.map('map', {
+                zoomControl: false,
+            });
+
+            snakeModule.map.setView([52.5219, 13.4045], 13);
+
+            L.tileLayer(
+                'https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png',
+                {
+                    attribution: '<a href="https://foundation.wikimedia.org/wiki/Maps_Terms_of_Use">Wikimedia maps</a> | &copy; <a href="http://osm.org/copyright">OpenStreetMap</a>'
+                }
+            ).addTo(snakeModule.map);
+
+            snakeModule.bikeIcon = L.icon({
+                iconUrl: 'bike.png',
+                iconSize: [30, 30],
+                iconAnchor: [15, 15],
+                className: 'map-marker-bike',
+            });
+
+            marker = L.marker([52.5219, 13.4045], { icon: snakeModule.bikeIcon }).addTo(snakeModule.map);
+
+            snakeModule.visibleMarkers = [];
+
+            users = [
+                {
+                    device: 123,
+                    locations: [
+                        {
+                            latitude: 1,
+                            longitude: 1,
+                            timestamp: 1591511775
+                        }, {
+                            latitude: 1,
+                            longitude: 1,
+                            timestamp: 1591538845
+                        }
+                    ]
+                }
+            ]
+            console.log("loading json")
+
+            $.ajax({
+                url: 'locations.json',
+                async: false,
+                dataType: 'json',
+                success: function (response) {
+                    console.log("object loaded")
+
+                    snakeModule.earliestTimestamp = Number.MAX_VALUE
+                    snakeModule.latestTimestamp = Number.MIN_VALUE
+
+                    for (var key in response) {
+                        if (response.hasOwnProperty(key)) {
+                            console.log(key + " -> ");
+                            locations = response[key]
+                            for (var i = 0; i < locations.length; i++) {
+                                currentTimestamp = locations[i].created;
+                                if (currentTimestamp < snakeModule.earliestTimestamp) {
+                                    snakeModule.earliestTimestamp = currentTimestamp
+                                }
+                                if (currentTimestamp > snakeModule.latestTimestamp) {
+                                    snakeModule.latestTimestamp = currentTimestamp
+                                }
+                            }
+                        }
+                    }
+                    snakeModule.frameStepsSec = (snakeModule.latestTimestamp - snakeModule.earliestTimestamp) / (60 * 60)
+
+                    console.log("earliest timestamp:" + snakeModule.earliestTimestamp)
+                    console.log("earliest timestamp:" + new Date(snakeModule.earliestTimestamp * 1000))
+                    console.log("latest timestamp:" + snakeModule.latestTimestamp)
+                    console.log("latest timestamp:" + new Date(snakeModule.latestTimestamp * 1000))
+                    console.log("total real life seconds to cover: " + (snakeModule.latestTimestamp - snakeModule.earliestTimestamp))
+                    console.log("total amount of frames to create for 1 minute video: " + (60 * 60))
+                    console.log("step in seconds from on frame to next: " + snakeModule.frameStepsSec)
+
+                    snakeModule.locations = response
+                    snakeModule.counter = 0;
+                    snakeModule.currentTimestamp = snakeModule.earliestTimestamp;
+
+                }
+            });
+            alert("ready")
+        });
+
+        snakeModule.nextFrame = function () {
+            snakeModule.visibleMarkers.forEach(function (marker) {
+                snakeModule.map.removeLayer(marker)
+            });
+
+            snakeModule.visibleMarkers = []
+            snakeModule.counter++;
+            snakeModule.currentTimestamp += snakeModule.frameStepsSec
+
+            $("div#frames").text(snakeModule.counter)
+            $("div#epoch").text(new Date(snakeModule.currentTimestamp * 1000))
+            console.log("frame: " + snakeModule.counter)
+            console.log("timestamp: " + new Date(snakeModule.currentTimestamp * 1000))
+
+            for (var key in snakeModule.locations) {
+                if (snakeModule.locations.hasOwnProperty(key)) {
+                    locations = snakeModule.locations[key]
+
+                    var before = []
+                    var after = []
+
+                    for (var i = 0; i < locations.length; i++) {
+                        locationTimestamp = locations[i].created
+                        if (locationTimestamp < snakeModule.currentTimestamp) {
+                            before.push(locations[i])
+                        }
+                        if (locationTimestamp >= snakeModule.currentTimestamp) {
+                            after.push(locations[i])
+                        }
+                    }
+
+                    // bike hasn't shown up yet - skip.
+                    if (before.length == 0) {
+                        continue
+                    }
+
+                    var oldestBefore = undefined
+
+                    // find location just before the current timestamp
+                    for (var i = 0; i < before.length; i++) {
+                        if (oldestBefore === undefined || before[i].created > oldestBefore.created) {
+                            oldestBefore = before[i]
+                        }
+                    }
+
+                    if (before.created < (snakeModule.currentTimestamp - 120)) {
+                        continue
+                    }
+
+                    var lat = oldestBefore.latitude / 1000000
+                    var long = oldestBefore.longitude / 1000000
+
+                    marker = L.marker([(oldestBefore.latitude / 1000000), (oldestBefore.longitude / 1000000)], { icon: snakeModule.bikeIcon }).addTo(snakeModule.map);
+                    snakeModule.visibleMarkers.push(marker);
+
+                    var youngestAfter = {}
+                    youngestAfter.created = snakeModule.latestTimestamp
+                }
+            }
+
+            alert("render")
+
+            if (snakeModule.currentTimestamp >= snakeModule.latestTimestamp) {
+                alert("finished")
+            }
+        }
+
+    </script>
+</body>
+
+</html>
