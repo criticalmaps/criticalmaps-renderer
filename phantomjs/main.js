@@ -16,7 +16,7 @@ page.onAlert = function (msg) {
     console.log('ALERT: ' + msg);
     if (msg == "render") {
         frameCounter++
-        page.render('frames/frame' + frameCounter + '.png');
+        page.render('frames/frame' + frameCounter + '.jpg', {format: 'jpeg', quality: '100'});
         page.evaluate(function () {
             $(document).ready(function () {
                 snakeModule.nextFrame();

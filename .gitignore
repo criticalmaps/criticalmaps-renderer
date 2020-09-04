@@ -1,3 +1,4 @@
-phantomjs/frames/*.png
+phantomjs/frames/*
 phantomjs/*.avi
+phantomjs/*.mp4
 phantomjs/*.json
